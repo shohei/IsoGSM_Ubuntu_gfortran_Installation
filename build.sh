@@ -1,20 +1,20 @@
 #!/bin/bash
-# build.sh  --  IsoGSM ARM64 / GFortran 一括ビルドスクリプト
+# build.sh  --  IsoGSM ARM64 / GFortran all-in-one build script
 #
-# 使い方:
-#   ./build.sh [オプション]
+# Usage:
+#   ./build.sh [options]
 #
-# オプション:
-#   --skip-patch   パッチ適用をスキップ (既に適用済みの場合)
-#   --libs-only    libs のみビルド
-#   --gsm-only     gsm のみビルド (libs は既にビルド済みであること)
-#   -jN            make の並列ジョブ数 (デフォルト: 1)
-#   -h, --help     ヘルプを表示
+# Options:
+#   --skip-patch   Skip patch application (if already applied)
+#   --libs-only    Build libs only
+#   --gsm-only     Build gsm only (libs must already be built)
+#   -jN            Number of parallel make jobs (default: 1)
+#   -h, --help     Show this help
 
 set -euo pipefail
 
 # ─────────────────────────────────────────────────────────────────────────────
-#  表示ユーティリティ
+#  Output utilities
 # ─────────────────────────────────────────────────────────────────────────────
 BOLD='\033[1m'
 RED='\033[0;31m'
@@ -29,7 +29,7 @@ warn() { echo -e "${YELLOW}[WARN]${NC} $*"; }
 die()  { echo -e "${RED}[ERROR]${NC} $*" >&2; exit 1; }
 
 # ─────────────────────────────────────────────────────────────────────────────
-#  オプション解析
+#  Option parsing
 # ─────────────────────────────────────────────────────────────────────────────
 SKIP_PATCH=0
 BUILD_LIBS=1
@@ -45,13 +45,13 @@ while [[ $# -gt 0 ]]; do
         -h|--help)
             sed -n '2,12p' "$0" | sed 's/^# \{0,1\}//'
             exit 0 ;;
-        *) die "不明なオプション: $1  (--help で使い方を確認)" ;;
+        *) die "Unknown option: $1  (use --help to see usage)" ;;
     esac
     shift
 done
 
 # ─────────────────────────────────────────────────────────────────────────────
-#  パス設定 (スクリプトの場所から自動検出)
+#  Path setup (auto-detected from script location)
 # ─────────────────────────────────────────────────────────────────────────────
 ISOGSM_DIR="$(cd "$(dirname "$0")" && pwd)"
 LIBS_DIR="$ISOGSM_DIR/libs"
@@ -64,15 +64,15 @@ CONFIGURE_MODEL="$GSM_DIR/configure-model"
 info "IsoGSM root : $ISOGSM_DIR"
 
 # ─────────────────────────────────────────────────────────────────────────────
-#  依存ツール確認
+#  Dependency check
 # ─────────────────────────────────────────────────────────────────────────────
-step "依存ツールの確認"
+step "Checking dependencies"
 
 for cmd in gfortran mpif90 mpirun gcc make patch; do
     if command -v "$cmd" &>/dev/null; then
         info "$(printf '%-10s' $cmd) : $(command -v $cmd)"
     else
-        die "'$cmd' が見つかりません。インストールしてください。"
+        die "'$cmd' not found. Please install it."
     fi
 done
 
@@ -80,36 +80,36 @@ gfortran --version | head -1
 mpif90   --version | head -1
 
 # ─────────────────────────────────────────────────────────────────────────────
-#  MPI ディレクトリの自動検出
+#  MPI directory auto-detection
 # ─────────────────────────────────────────────────────────────────────────────
 MPICH_DIR="$(cd "$(dirname "$(command -v mpif90)")/.." && pwd)"
 info "MPICH_DIR   : $MPICH_DIR"
 
 # ─────────────────────────────────────────────────────────────────────────────
-#  パッチ適用
+#  Apply patch
 # ─────────────────────────────────────────────────────────────────────────────
-step "パッチ適用 (isogsm_arm64_gfortran.patch)"
+step "Applying patch (isogsm_arm64_gfortran.patch)"
 
-[[ -f "$PATCH_FILE" ]] || die "パッチファイルが見つかりません: $PATCH_FILE"
+[[ -f "$PATCH_FILE" ]] || die "Patch file not found: $PATCH_FILE"
 
 if [[ $SKIP_PATCH -eq 1 ]]; then
-    warn "--skip-patch が指定されました。パッチをスキップします。"
+    warn "--skip-patch specified. Skipping patch."
 elif patch --dry-run -R -p1 -s -f < "$PATCH_FILE" &>/dev/null; then
-    info "パッチは既に適用済みです。スキップします。"
+    info "Patch already applied. Skipping."
 else
-    # 未適用の場合: まず適用可能かドライランで確認
+    # Not yet applied: verify it can be applied cleanly first
     if ! patch --dry-run -p1 -s -f < "$PATCH_FILE" &>/dev/null; then
-        die "パッチを適用できません。ファイルが想定外の状態です。\n" \
-            "    patch --dry-run -p1 < $PATCH_FILE  で詳細を確認してください。"
+        die "Cannot apply patch. Files are in an unexpected state.\n" \
+            "    Run: patch --dry-run -p1 < $PATCH_FILE  for details."
     fi
     patch -p1 < "$PATCH_FILE"
-    info "パッチを適用しました。"
+    info "Patch applied."
 fi
 
 # ─────────────────────────────────────────────────────────────────────────────
-#  ランタイムソースの修正 (ARM64/GFortran 実行時バグ対策)
+#  Runtime source fixes (ARM64/GFortran compatibility)
 # ─────────────────────────────────────────────────────────────────────────────
-step "ランタイムソースの修正"
+step "Applying runtime source fixes"
 
 export ISOGSM_DIR
 python3 - <<'PYEOF'
@@ -127,7 +127,7 @@ def patch_file(relpath, transform_fn):
             f.write(fixed)
         print(f"[FIXED] {relpath}")
     else:
-        print(f"[OK]    {relpath} (既に修正済み)")
+        print(f"[OK]    {relpath} (already fixed)")
 
 # ── fixrd.F / fixrd_clim.F / fixrd2.F ──────────────────────────────────────
 def fix_fixrd(src):
@@ -214,9 +214,9 @@ def fix_rdgb(src):
 
 patch_file('libs/lib/w3lib/rdgb.F', fix_rdgb)
 
-# ── gsm_runs/runscr/mpisub.in (テンプレート) ─────────────────────────────────
-# configure-scr が mpisub.in から mpisub を生成するため、テンプレートを修正する。
-# 修正後は configure-scr を再実行して mpisub を再生成する必要がある。
+# ── gsm_runs/runscr/mpisub.in (template) ────────────────────────────────────
+# configure-scr generates mpisub from mpisub.in, so we fix the template.
+# configure-scr must be re-run after this fix to regenerate mpisub.
 def fix_mpisub_in(src):
     # Already fixed if PBS_NODEFILE conditional with --oversubscribe is present
     if 'if [ -n "$PBS_NODEFILE"' in src and '--oversubscribe' in src:
@@ -237,14 +237,15 @@ def fix_mpisub_in(src):
 
 patch_file('gsm_runs/runscr/mpisub.in', fix_mpisub_in)
 
-# ── def/sysvars.defs (NICKNAME-MARCHのHEADERブロックにLD_LIBRARY_PATHを追加) ─
-# configure-scr は sysvars.defs から HEADER を生成するため、テンプレートを修正する。
+# ── def/sysvars.defs (add LD_LIBRARY_PATH to NICKNAME-MARCH HEADER block) ───
+# configure-scr regenerates gsm_runs/HEADER from this block on every run via
+# def/get_sysvars, so the fix must live here rather than in HEADER directly.
 LD_LINE = 'export LD_LIBRARY_PATH=/usr/local/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}'
 
 def fix_sysvars_header(src):
     if LD_LINE in src:
         return src
-    # NICKNAMEをconfigure-libsから取得
+    # Read NICKNAME from configure-libs
     nickname = ''
     cfg = os.path.join(BASE, 'libs/configure-libs')
     with open(cfg) as f:
@@ -254,7 +255,7 @@ def fix_sysvars_header(src):
                 nickname = m.group(1).strip()
                 break
     if not nickname:
-        print('[WARN]  NICKNAME が configure-libs で見つかりません。sysvars.defs をスキップします。')
+        print('[WARN]  NICKNAME not found in configure-libs. Skipping sysvars.defs.')
         return src
     lines = src.split('\n')
     new_lines = []
@@ -272,27 +273,27 @@ def fix_sysvars_header(src):
 patch_file('def/sysvars.defs', fix_sysvars_header)
 PYEOF
 
-info "ランタイムソースの修正が完了しました。"
+info "Runtime source fixes complete."
 
 # ─────────────────────────────────────────────────────────────────────────────
-#  環境依存パスの設定
+#  Path configuration
 # ─────────────────────────────────────────────────────────────────────────────
-step "パスの設定"
+step "Configuring paths"
 
 # sysvars.defs: GRSM_BASE_DIR
 info "GRSM_BASE_DIR = $ISOGSM_DIR"
 sed -i "s|^GRSM_BASE_DIR=.*|GRSM_BASE_DIR=$ISOGSM_DIR|" "$SYSVARS"
 
 # sysvars.defs: NICKNAME:roses:MPICH_DIR
-# configure-libs の NICKNAME を読み取って対応エントリを更新する
+# Read NICKNAME from configure-libs and update the matching entry
 NICKNAME="$(grep '^NICKNAME=' "$CONFIGURE_LIBS" | cut -d= -f2)"
 info "NICKNAME = $NICKNAME, MPICH_DIR = $MPICH_DIR"
 
 if grep -q "^NICKNAME:${NICKNAME}:MPICH_DIR=" "$SYSVARS"; then
     sed -i "s|^NICKNAME:${NICKNAME}:MPICH_DIR=.*|NICKNAME:${NICKNAME}:MPICH_DIR=$MPICH_DIR|" "$SYSVARS"
 else
-    warn "sysvars.defs に NICKNAME:${NICKNAME}:MPICH_DIR エントリがありません。"
-    warn "手動で追加するか、NICKNAME を configure-libs で変更してください。"
+    warn "No NICKNAME:${NICKNAME}:MPICH_DIR entry found in sysvars.defs."
+    warn "Add it manually or change NICKNAME in configure-libs."
 fi
 
 # configure-model: LIBS_DIR
@@ -300,13 +301,13 @@ info "LIBS_DIR = $LIBS_DIR"
 sed -i "s|^LIBS_DIR=.*|LIBS_DIR=$LIBS_DIR|" "$CONFIGURE_MODEL"
 
 # ─────────────────────────────────────────────────────────────────────────────
-#  libs ビルド
+#  Build libs
 # ─────────────────────────────────────────────────────────────────────────────
 if [[ $BUILD_LIBS -eq 1 ]]; then
-    step "libs ビルド"
+    step "Building libs"
     cd "$LIBS_DIR"
 
-    info "configure-libs を実行中..."
+    info "Running configure-libs..."
     ./configure-libs
 
     info "make clean ..."
@@ -315,17 +316,17 @@ if [[ $BUILD_LIBS -eq 1 ]]; then
     info "make (jobs=$JOBS) ..."
     make -j"$JOBS"
 
-    info "libs ビルド完了。"
+    info "libs build complete."
 fi
 
 # ─────────────────────────────────────────────────────────────────────────────
-#  gsm ビルド
+#  Build gsm
 # ─────────────────────────────────────────────────────────────────────────────
 if [[ $BUILD_GSM -eq 1 ]]; then
-    step "gsm ビルド"
+    step "Building gsm"
     cd "$GSM_DIR"
 
-    info "configure-model を実行中..."
+    info "Running configure-model..."
     ./configure-model
 
     info "make clean ..."
@@ -334,41 +335,41 @@ if [[ $BUILD_GSM -eq 1 ]]; then
     info "make (jobs=$JOBS) ..."
     make -j"$JOBS"
 
-    info "gsm ビルド完了。"
+    info "gsm build complete."
 fi
 
 # ─────────────────────────────────────────────────────────────────────────────
-#  完了レポート
+#  Build report
 # ─────────────────────────────────────────────────────────────────────────────
-step "ビルド完了"
+step "Build complete"
 
 if [[ $BUILD_GSM -eq 1 ]]; then
     echo ""
-    info "生成された実行ファイル ($GSM_DIR/bin/):"
+    info "Executables generated ($GSM_DIR/bin/):"
     for x in "$GSM_DIR/bin/"*.x; do
         printf "    %s\n" "$(basename "$x")"
     done
 fi
 
 # ─────────────────────────────────────────────────────────────────────────────
-#  実行スクリプトの生成 (configure-scr)
+#  Generate run scripts (configure-scr)
 # ─────────────────────────────────────────────────────────────────────────────
-step "実行スクリプトの生成"
+step "Generating run scripts"
 cd "$ISOGSM_DIR/gsm_runs"
-info "configure-scr gsm を実行中..."
+info "Running configure-scr gsm..."
 ./configure-scr gsm
-info "実行スクリプトを生成しました。"
+info "Run scripts generated."
 
 # ─────────────────────────────────────────────────────────────────────────────
-#  完了レポート
+#  Final summary
 # ─────────────────────────────────────────────────────────────────────────────
-step "ビルド完了"
+step "Done"
 
 echo ""
-info "正常終了しました。"
+info "Build finished successfully."
 echo ""
-echo "  実行方法:"
+echo "  To run the model:"
 echo "    cd $ISOGSM_DIR/gsm_runs"
 echo "    ./gsm"
 echo ""
-echo "  ※ LD_LIBRARY_PATH=/usr/local/lib は gsm_runs/HEADER に設定済みです。"
+echo "  Note: LD_LIBRARY_PATH=/usr/local/lib is set in gsm_runs/HEADER."
