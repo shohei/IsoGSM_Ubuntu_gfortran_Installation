@@ -1,0 +1,444 @@
+--- a/def/get_scrvars
++++ b/def/get_scrvars
+@@ -26,7 +26,7 @@
+ echo "RUNS_DIR=$RUNS_DIR" >>scrvars
+ echo "EXPSCR_DIR=$RUNS_DIR/expscr" >>scrvars
+ chmod a+x scrvars
+-. scrvars
++. ./scrvars
+ #
+ #  create file for sed
+ #
+
+--- a/def/model_config/function.h
++++ b/def/model_config/function.h
+@@ -100,7 +100,6 @@
+ #ifdef LINUX
+ #define REAL4_W3LIB
+ #define OPENMP
+-#define FASTBAREAD
+ #endif
+ 
+ #ifdef INTEL
+
+--- a/def/sysvars.defs
++++ b/def/sysvars.defs
+@@ -88,6 +88,7 @@
+ CPP='gcc -E'
+ MACHINE@INSTITUTION:ibmsp@ncar:CPP=/usr/ccs/lib/cpp
+ MACHINE-COMPILER:linux-intel:CPP='gcc -E'
++MACHINE-COMPILER:linux-gnu:CPP='gcc -E'
+ MACHINE:ibmsp:CPP=/usr/lib/cpp
+ MACHINE:cray|dec:t3e:t90:CPP='cpp -C'
+ MACHINE:es|nec:CPP=/usr/lib/cpp
+@@ -132,6 +133,7 @@
+ MACHINE:mac:MODELSUP_F77=xlf90
+ MACHINE-COMPILER:linux-pgi:MODELSUP_F77=pgf90
+ MACHINE-COMPILER:linux-intel:MODELSUP_F77=ifort
++MACHINE-COMPILER:linux-gnu:MODELSUP_F77=gfortran
+ MACHINE:es:MODELSUP_F77=esf90
+ MACHINE@INSTITUTION:ibmsp@ncar:MODELSUP_F77=xlf90_r
+ #
+@@ -139,6 +141,7 @@
+ #
+ MODEL_SINGLE_F77=f90
+ COMPILER:intel:MODEL_SINGLE_F77=ifort
++COMPILER:gnu:MODEL_SINGLE_F77=gfortran
+ COMPILER:pgi:MODEL_SINGLE_F77=pgf90
+ MACHINE:tacc:MODEL_SINGLE_F77=pgf90
+ MACHINE:c90|cray|dec|hp|origin:F77|t3e|t90:MODEL_SINGLE_F77=f90
+@@ -167,6 +170,7 @@
+ MACHINE:macpro:MODEL_MPI_F77=mpif77
+ MACHINE:sx6:MODEL_MPI_F77=sxmpif90
+ COMPILER:intel:MODEL_MPI_F77=ifort
++COMPILER:gnu:MODEL_MPI_F77=mpif90
+ NICKNAME:shui:MODEL_MPI_F77=ifort
+ NICKNAME:naam:MODEL_MPI_F77=ifort
+ MACHINE@INSTITUTION:ibmsp@ncar:MODEL_MPI_F77=mpxlf95_r
+@@ -191,6 +195,7 @@
+ MACHINE:ibmsp:W3LIB_DIR=w3lib_ibmspbv
+ MACHINE-COMPILER:linux-pgi:W3LIB_DIR=w3lib_linux
+ MACHINE-COMPILER:linux-intel:W3LIB_DIR=w3lib_intel
++MACHINE-COMPILER:linux-gnu:W3LIB_DIR=w3lib
+ MACHINE:mac:W3LIB_DIR=w3lib_mac
+ MACHINE:nec:W3LIB_DIR=w3lib_nec
+ MACHINE:origin:W3LIB_DIR=w3lib_origin
+@@ -210,6 +215,7 @@
+ MACHINE:ibmsp:UTIL_DIR=util_ibmspbv
+ MACHINE-COMPILER:linux-pgi:UTIL_DIR=util_linux
+ MACHINE-COMPILER:linux-intel:UTIL_DIR=util_intel
++MACHINE-COMPILER:linux-gnu:UTIL_DIR=util_intel
+ MACHINE:mac:UTIL_DIR=util_mac
+ MACHINE:nec:UTIL_DIR=util_nec
+ MACHINE:origin:UTIL_DIR=util_origin
+@@ -227,6 +233,7 @@
+ MACHINE:hp:BUFRLIB_DIR=bufrlib_hp
+ MACHINE:ibmsp:BUFRLIB_DIR=bufrlib_ibmspbv
+ MACHINE:linux-pgi:BUFRLIB_DIR=bufrlib_linux
++MACHINE-COMPILER:linux-gnu:BUFRLIB_DIR=bufrlib_linux
+ MACHINE:origin:BUFRLIB_DIR=bufrlib_origin
+ MACHINE:sgi:BUFRLIB_DIR=bufrlib_sgi
+ MACHINE:sun:BUFRLIB_DIR=bufrlib_sun
+@@ -250,6 +257,7 @@
+ NICKNAME-MARCH:compas-mpi:ROMS_F77=/opt/mpich/myrinet/pgi/bin/mpif90
+ NICKNAME-MPIVSN:compas-openmpi:ROMS_F77=/share/apps/openmpi-1.2.6/pgi/bin/mpif90
+ MACHINE-COMPILER:linux-intel:ROMS_F77=ifort
++MACHINE-COMPILER:linux-gnu:ROMS_F77=gfortran
+ MACHINE-COMPILER:linux-pgi:ROMS_F77=pgf90
+ #
+ #  11.  ROMS supplementary program compilers
+@@ -259,6 +267,7 @@
+ NICKNAME:atlas:ROMSSUP_F77=pgf90
+ NICKNAME:compas:ROMSSUP_F77=pgf90
+ MACHINE-COMPILER:linux-intel:ROMSSUP_F77=ifort
++MACHINE-COMPILER:linux-gnu:ROMSSUP_F77=gfortran
+ MACHINE-COMPILER:linux-pgi:ROMSSUP_F77=pgf90
+ #
+ #  12.  FORECAST SUPPLEMENTAL PROGRAMS FORT_FLAGS 
+@@ -270,6 +279,7 @@
+ MACHINE:dec:MODELSUP_FORT_FLAGS="-r8 -i8 -O4 -fpe2 -fast"
+ MACHINE:hp:MODELSUP_FORT_FLAGS="-R8 +O3"
+ COMPILER:intel:MODELSUP_FORT_FLAGS="-r8 -O2 -convert big_endian -shared-intel -mcmodel=medium"
++COMPILER:gnu:MODELSUP_FORT_FLAGS="-fdefault-real-8 -O2 -fconvert=big-endian -fallow-argument-mismatch"
+ MACHINE:mac:MODELSUP_FORT_FLAGS="-O3 -Q -qfixed -qrealsize=8 -qsave -qstrict -qextname"
+ MACHINE:macpro:MODELSUP_FORT_FLAGS="-N113 -O -YEXT_NAMES=LCS -YEXT_SFX=_"
+ MACHINE:origin|sgi:MODELSUP_FORT_FLAGS="-O2 -r8"
+@@ -286,6 +296,7 @@
+ MODELSUP_LOAD_FLAGS=$MODELSUP_FORT_FLAGS
+ MACHINE-COMPILER:linux-pgi:MODELSUP_LOAD_FLAGS="-r8 -O2 -lpgmp -Mrecursive -Mdalign -DLINUX -byteswapio"
+ MACHINE-COMPILER:linux-intel:MODELSUP_LOAD_FLAGS="-r8 -O2 -convert big_endian"
++MACHINE-COMPILER:linux-gnu:MODELSUP_LOAD_FLAGS="-fdefault-real-8 -O2 -fconvert=big-endian"
+ MACHINE-LINUXVSN:linux-7.2:MODELSUP_LOAD_FLAGS="-r8 -O2 -lpgmp -lpthread -Mrecursive -Mdalign -DLINUX -byteswapio"
+ MACHINE:macpro:MODELSUP_LOAD_FLAGS="-N113 -O -YEXT_NAMES=LCS -YEXT_SFX=_ -lU77"
+ #
+@@ -362,6 +373,7 @@
+ MACHINE-COMPILER-NICKNAME:linux-pgi-atlas:MODEL_SINGLE_FORT_FLAGS="-r8 -O2 -Mrecursive -Mdalign -DLINUX -Msave -byteswapio -mcmodel=medium"
+ MACHINE-COMPILER-NICKNAME:linux-pgi-compas:MODEL_SINGLE_FORT_FLAGS="-r8 -O2 -Mrecursive -Mdalign -DLINUX -Msave -byteswapio"
+ COMPILER:intel:MODEL_SINGLE_FORT_FLAGS="-r8 -O2 -convert big_endian -shared-intel -mcmodel=medium"
++COMPILER:gnu:MODEL_SINGLE_FORT_FLAGS="-fdefault-real-8 -O2 -fconvert=big-endian -fallow-argument-mismatch"
+ MACHINE-MARCH:ibmsp-single:MODEL_SINGLE_FORT_FLAGS="-O3 -qMARCH=auto -qstrict -qfixed -qrealsize=8 -qnosave -qmaxmem=-1"
+ MACHINE-MARCH:ibmsp-thread:MODEL_SINGLE_FORT_FLAGS="-Q -O3 -qstrict -qMARCH=auto -qrealsize=8 -qxlf77=leadzero -qnosave -qmaxmem=-1 -qsmp=noauto"
+ MACHINE-MARCH:dec-single:MODEL_SINGLE_FORT_FLAGS="-r8 -i8 -O4 -fpe1 -fast"
+@@ -382,6 +394,7 @@
+ #
+ MODEL_MPI_FORT_FLAGS="-O2"
+ COMPILER:intel:MODEL_MPI_FORT_FLAGS="-r8 -O2 -convert big_endian -I${MPICH_DIR}/include"
++COMPILER:gnu:MODEL_MPI_FORT_FLAGS="-fdefault-real-8 -O2 -fconvert=big-endian -fallow-argument-mismatch -I${MPICH_DIR}/include"
+ MACHINE-COMPILER:linux-pgi:MODEL_MPI_FORT_FLAGS="-r8 -O2 -Mrecursive -Mdalign -DLINUX -Mbyteswapio -Mextend -I${MPICH_DIR}/include"
+ MACHINE:tacc:MODEL_MPI_FORT_FLAGS="-r8 -O2 -Mrecursive -Mdalign -DLINUX -Mbyteswapio -I/opt/MPI/pgi/mpich-gm/1.2.5..12a/include"
+ MACHINE-MARCH:ibmsp-mpi:MODEL_MPI_FORT_FLAGS="-O3 -qMARCH=auto -qstrict -qfixed=132 -qrealsize=8 -qnosave -qmaxmem=-1"
+@@ -407,6 +420,7 @@
+ MODEL_MPI_LOAD_FLAGS=$MODEL_MPI_LOAD_FLAGS
+ MACHINE:ibmsp:MODEL_MPI_LOAD_FLAGMPI_LOAD_FLAGS="-O3 -qarch=auto -qstrict -qrealsize=8 -qnosave -qmaxmem=-1 -L/usr/local/apps/mass"
+ COMPILER:intel:MODEL_MPI_LOAD_FLAGS="-r8 -O2 -convert big_endian -L/opt/gm/lib"
++COMPILER:gnu:MODEL_MPI_LOAD_FLAGS="-fdefault-real-8 -O2 -fconvert=big-endian"
+ MACHINE:compas:MODEL_MPI_LOAD_FLAGS="-r8 -O2 -Mrecursive -Mdalign -DLINUX -Mbyteswapio -L/opt/gm/lib"
+ MACHINE:tacc:MODEL_MPI_LOAD_FLAGS="-r8 -O2 -Mrecursive -Mdalign -DLINUX -Mbyteswapio -L/opt/gm/lib"
+ MACHINE:macpro:MODEL_MPI_LOAD_FLAGS="-O -N113 -YEXT_NAMES=LCS -YEXT_SFX=_ -lU77"
+@@ -474,6 +488,7 @@
+ MACHINE-MARCH:es-thread:W3LIB_FORT_FLAGS="-f3 -ew -Pauto"
+ MACHINE:ibmsp:W3LIB_FORT_FLAGS="-O3 -qarch=auto -qstrict -qfixed"
+ COMPILER:intel:W3LIB_FORT_FLAGS="-O2 -shared-intel -mcmodel=medium"
++COMPILER:gnu:W3LIB_FORT_FLAGS="-O2 -fdefault-real-8 -fallow-argument-mismatch"
+ MACHINE-COMPILER-NICKNAME:linux-pgi-atlas:W3LIB_FORT_FLAGS="-Mrecursive -Mdalign -DLINUX -byteswapio -Msecond_underscore -mcmodel=medium"
+ MACHINE-COMPILER-NICKNAME:linux-pgi-compas:W3LIB_FORT_FLAGS="-Mrecursive -Mdalign -DLINUX -byteswapio -Msecond_underscore"
+ MACHINE-MARCH-COMPILER-NICKNAME:linux-single-pgi-atlas:W3LIB_FORT_FLAGS="-Mrecursive -Mdalign -DLINUX -byteswapio -mcmodel=medium"
+@@ -494,6 +509,7 @@
+ W3LIB_LOAD_FLAGS=$W3LIB_FORT_FLAGS
+ MACHINE-COMPILER:linux-pgi:W3LIB_LOAD_FLAGS="-lpgmp -lpthread -Mrecursive -Mdalign -DLINUX -byteswapio"
+ MACHINE-COMPILER:linux-intel:W3LIB_LOAD_FLAGS="-O2"
++MACHINE-COMPILER:linux-gnu:W3LIB_LOAD_FLAGS="-O2"
+ MACHINE:macpro:W3LIB_LOAD_FLAGS="-O -YEXT_NAMES=LCS -YEXT_SFX=_ -lU77"
+ MACHINE-LINUXVSN:linux-7.2:W3LIB_LOAD_FLAGS="-lpgmp -lpthread -Mrecursive -Mdalign -DLINUX -byteswapio"
+ DEBUG:yes:W3LIB_FORT_FLAGS="-g -C"
+@@ -505,6 +521,7 @@
+ MACHINE:dec:BFLIB_FORT_FLAGS="-r8 -i8 -fpe2"
+ MACHINE:ibmsp:BFLIB_FORT_FLAGS="-O3 -qarch=auto -qstrict -qfixed"
+ MACHINE-COMPILER:linux-intel:BFLIB_FORT_FLAGS=""
++MACHINE-COMPILER:linux-gnu:BFLIB_FORT_FLAGS="-fdefault-real-8"
+ MACHINE:linux:BFLIB_FORT_FLAGS="-r8"
+ MACHINE:macpro|mac:BFLIB_FORT_FLAGS="-O"
+ MACHINE:origin|sgi|t3e|t90:BFLIB_FORT_FLAGS="-O2"
+@@ -516,6 +533,7 @@
+ BFLIB_LOAD_FLAGS=$BFLIB_FORT_FLAGS
+ MACHINE-COMPILER:linux-pgi:BFLIB_LOAD_FLAGS="-lpgmp -lpthread -Mrecursive -Mdalign -DLINUX -byteswapio"
+ MACHINE-COMPILER:linux-intel:BFLIB_LOAD_FLAGS=""
++MACHINE-COMPILER:linux-gnu:BFLIB_LOAD_FLAGS="-fdefault-real-8"
+ MACHINE-MARCH-LINUXVSN:linux-thread-7.2:BFLIB_LOAD_FLAGS="-lpgmp -lpthread -Mrecursive -Mdalign -DLINUX -byteswapio"
+ #
+ #  31.  SCNVRT FORT and LOAD FLAGS
+@@ -548,6 +566,7 @@
+ MACHINE@NICKNAME:linux@shui:MODEL_MPI_EXTRA_LIBS='-lmpi'
+ MACHINE-COMPILER:linux-pgi:MODEL_MPI_EXTRA_LIBS="${MPICH_DIR}/lib/libmpich.a -lpthread"
+ MACHINE-COMPILER:linux-intel:MODEL_MPI_EXTRA_LIBS=
++MACHINE-COMPILER:linux-gnu:MODEL_MPI_EXTRA_LIBS=
+ MACHINE-MPIVSN:linux-openmpi:MODEL_MPI_EXTRA_LIBS="${MPICH_DIR}/lib/libmpi.so -lpthread"
+ MACHINE:nec:MODEL_MPI_EXTRA_LIBS="-lfft_64 -lblas_64"
+ MACHINE:origin:MODEL_MPI_EXTRA_LIBS='-lmpi'
+@@ -587,6 +606,7 @@
+ FFT99M=
+ MACHINE:compas2|dec|hp|ibmsp|linux|mac|macpro|origin|sgi|sun:FFT99M=fft99m.o
+ COMPILER:intel:FFT99M=fft99m.o
++COMPILER:gnu:FFT99M=fft99m.o
+ #
+ #  40.  batch job submit command
+ #
+@@ -594,6 +614,7 @@
+ MACHINE:dec|es:MPISUBMIT=qsub
+ MACHINE@INSTITUTION:ibmsp@ncar:MPISUBMIT=bsub
+ COMPILER:intel:MPISUBMIT=qsub
++COMPILER:gnu:MPISUBMIT=qsub
+ MACHINE:compas:MPISUBMIT='ssh -f compute-1-31'
+ MACHINE:linux:MPISUBMIT='ssh -f compute-1-31'
+ MACHINE:tacc:MPISUBMIT='mpi-launch --nogm -m compute-1-31'
+@@ -658,6 +679,7 @@
+ NICKNAME-MPIVSN:atlas-2:MPIEXEC=/share/apps/mpich2/pgi/bin/mpiexec 
+ NICKNAME-MPIVSN:atlas-openmpi:MPIEXEC=/share/apps/openmpi-1.3.3/pgi/bin/mpirun
+ COMPILER:intel:MPIEXEC=mpirun
++COMPILER:gnu:MPIEXEC=mpirun
+ NICKNAME:naam:MPIEXEC=mpiexec
+ NICKNAME:stampede:MPIEXEC=ibrun
+ MACHINE:dec:MPIEXEC=prun
+
+--- a/libs/configure-libs
++++ b/libs/configure-libs
+@@ -27,7 +27,7 @@
+ INSTITUTION=ecpc
+ MACHINE=linux
+ NICKNAME=roses
+-COMPILER=intel
++COMPILER=gnu
+ MARCH=mpi
+ MPIVSN=1
+ BIT64=no
+
+--- a/libs/define.h	1970-01-01 00:00:00 +0000
++++ b/libs/define.h	2026-01-01 00:00:00 +0000
+@@ -0,0 +1 @@
++#include <machine.h>
+
+--- a/libs/etc/util_intel/Makefile.in
++++ b/libs/etc/util_intel/Makefile.in
+@@ -1,5 +1,5 @@
+-EXECUTABLES = grmap.x grmean.x grmean_daily.x grsplit.x grtran.x ibm2ie3.x cray2ie3.x grvar.x \
+-cosread.x grsmooth.x
++EXECUTABLES = grmap.x grsplit.x grtran.x ibm2ie3.x cray2ie3.x grvar.x \
++cosread.x
+ OBJS = ${EXECUTABLES:.x=.o}
+ 
+ SHELL = @SHELL@
+
+--- a/libs/etc/util_intel/cosread.F
++++ b/libs/etc/util_intel/cosread.F
+@@ -1029,24 +1029,24 @@
+       PARAMETER (LMWD=32)
+       DIMENSION MASKS(LMWD)
+       SAVE      MASKS
+-      DATA      MASKS /'1'X,'3'X,'7'X,'F'X, '1F'X,'3F'X,'7F'X,'FF'X,
+-     +'1FF'X,'3FF'X,'7FF'X,'FFF'X, '1FFF'X,'3FFF'X,'7FFF'X,'FFFF'X,
+-     +'1FFFF'X,       '3FFFF'X,       '7FFFF'X,       'FFFFF'X,
+-     +'1FFFFF'X,      '3FFFFF'X,      '7FFFFF'X,      'FFFFFF'X,
+-     +'1FFFFFF'X,     '3FFFFFF'X,     '7FFFFFF'X,     'FFFFFFF'X,
+-     +'1FFFFFFF'X,    '3FFFFFFF'X,    '7FFFFFFF'X,    'FFFFFFFF'X/
+-C    +'1FFFFFFFF'X,   '3FFFFFFFF'X,   '7FFFFFFFF'X,   'FFFFFFFFF'X,
+-C    +'1FFFFFFFFF'X,  '3FFFFFFFFF'X,  '7FFFFFFFFF'X,  'FFFFFFFFFF'X,
+-C    +'1FFFFFFFFFF'X, '3FFFFFFFFFF'X, '7FFFFFFFFFF'X, 'FFFFFFFFFFF'X,
+-C    +'1FFFFFFFFFFF'X,'3FFFFFFFFFFF'X,'7FFFFFFFFFFF'X,'FFFFFFFFFFFF'X,
+-C    +'1FFFFFFFFFFFF'X,   '3FFFFFFFFFFFF'X,   '7FFFFFFFFFFFF'X,
+-C    +                                        'FFFFFFFFFFFFF'X,
+-C    +'1FFFFFFFFFFFFF'X,  '3FFFFFFFFFFFFF'X,  '7FFFFFFFFFFFFF'X,
+-C                                             'FFFFFFFFFFFFFF'X,
+-C    +'1FFFFFFFFFFFFFF'X, '3FFFFFFFFFFFFFF'X, '7FFFFFFFFFFFFFF'X,
+-C                                             'FFFFFFFFFFFFFFF'X,
+-C    +'1FFFFFFFFFFFFFFF'X,'3FFFFFFFFFFFFFFF'X,'7FFFFFFFFFFFFFFF'X,
+-C                                             'FFFFFFFFFFFFFFFF'X/
++      DATA      MASKS /Z'1',Z'3',Z'7',Z'F', Z'1F',Z'3F',Z'7F',Z'FF',
++     +Z'1FF',Z'3FF',Z'7FF',Z'FFF', Z'1FFF',Z'3FFF',Z'7FFF',Z'FFFF',
++     +Z'1FFFF',       Z'3FFFF',       Z'7FFFF',       Z'FFFFF',
++     +Z'1FFFFF',      Z'3FFFFF',      Z'7FFFFF',      Z'FFFFFF',
++     +Z'1FFFFFF',     Z'3FFFFFF',     Z'7FFFFFF',     Z'FFFFFFF',
++     +Z'1FFFFFFF',    Z'3FFFFFFF',    Z'7FFFFFFF',    Z'FFFFFFFF'/
++C    +Z'1FFFFFFFF',   Z'3FFFFFFFF',   Z'7FFFFFFFF',   Z'FFFFFFFFF',
++C    +Z'1FFFFFFFFF',  Z'3FFFFFFFFF',  Z'7FFFFFFFFF',  Z'FFFFFFFFFF',
++C    +Z'1FFFFFFFFFF', Z'3FFFFFFFFFF', Z'7FFFFFFFFFF', Z'FFFFFFFFFFF',
++C    +Z'1FFFFFFFFFFF',Z'3FFFFFFFFFFF',Z'7FFFFFFFFFFF',Z'FFFFFFFFFFFF',
++C    +Z'1FFFFFFFFFFFF',   Z'3FFFFFFFFFFFF',   Z'7FFFFFFFFFFFF',
++C    +                                        Z'FFFFFFFFFFFFF',
++C    +Z'1FFFFFFFFFFFFF',  Z'3FFFFFFFFFFFFF',  Z'7FFFFFFFFFFFFF',
++C                                             Z'FFFFFFFFFFFFFF',
++C    +Z'1FFFFFFFFFFFFFF', Z'3FFFFFFFFFFFFFF', Z'7FFFFFFFFFFFFFF',
++C                                             Z'FFFFFFFFFFFFFFF',
++C    +Z'1FFFFFFFFFFFFFFF',Z'3FFFFFFFFFFFFFFF',Z'7FFFFFFFFFFFFFFF',
++C                                             Z'FFFFFFFFFFFFFFFF'/
+ C          IBM PC using Microsoft Fortran uses different syntax:
+ C     DATA MASKS/16#1,16#3,16#7,16#F,16#1F,16#3F,16#7F,16#FF,
+ C    + 16#1FF,16#3FF,16#7FF,16#FFF,16#1FFF,16#3FFF,16#7FFF,16#FFFF,
+@@ -1135,12 +1135,12 @@
+       PARAMETER (LMWD=32)
+       DIMENSION MASKS(LMWD)
+       SAVE      MASKS
+-      DATA      MASKS /'1'X,'3'X,'7'X,'F'X, '1F'X,'3F'X,'7F'X,'FF'X,
+-     +'1FF'X,'3FF'X,'7FF'X,'FFF'X, '1FFF'X,'3FFF'X,'7FFF'X,'FFFF'X,
+-     +'1FFFF'X,       '3FFFF'X,       '7FFFF'X,       'FFFFF'X,
+-     +'1FFFFF'X,      '3FFFFF'X,      '7FFFFF'X,      'FFFFFF'X,
+-     +'1FFFFFF'X,     '3FFFFFF'X,     '7FFFFFF'X,     'FFFFFFF'X,
+-     +'1FFFFFFF'X,    '3FFFFFFF'X,    '7FFFFFFF'X,    'FFFFFFFF'X/
++      DATA      MASKS /Z'1',Z'3',Z'7',Z'F', Z'1F',Z'3F',Z'7F',Z'FF',
++     +Z'1FF',Z'3FF',Z'7FF',Z'FFF', Z'1FFF',Z'3FFF',Z'7FFF',Z'FFFF',
++     +Z'1FFFF',       Z'3FFFF',       Z'7FFFF',       Z'FFFFF',
++     +Z'1FFFFF',      Z'3FFFFF',      Z'7FFFFF',      Z'FFFFFF',
++     +Z'1FFFFFF',     Z'3FFFFFF',     Z'7FFFFFF',     Z'FFFFFFF',
++     +Z'1FFFFFFF',    Z'3FFFFFFF',    Z'7FFFFFFF',    Z'FFFFFFFF'/
+       INTEGER RGHTSH, OR, AND
+       LEFTSH(M,N) = ISHFT(M,N)
+       RGHTSH(M,N) = ISHFT(M,-N)
+
+--- a/libs/etc/util_intel/cray2ie3.F
++++ b/libs/etc/util_intel/cray2ie3.F
+@@ -17,6 +17,8 @@
+       dimension array(la)
+ c
+       integer crayopen, crayread, crayclose, crayback
++      integer imode
++      data imode/o'660'/
+ c
+       namelist/namfl/ fname
+ c
+@@ -26,7 +28,7 @@
+       print *,'iunit=',iunit
+ c
+       nrec=1
+-      icf=crayopen(fname, 0, o'660')
++      icf=crayopen(fname, 0, imode)
+       if(icf .le. 0) then
+         print *,'Unable to open file=',fname,' icf=',icf
+         call abort
+
+--- a/libs/etc/util_intel/grvar.F
++++ b/libs/etc/util_intel/grvar.F
+@@ -2017,7 +2017,7 @@
+ C   LANGUAGE: CRAY FORTRAN
+ C
+ C$$$
+-      DIMENSION KPDS(200),KGDS(200),IPDS(200),IGDS(200)
++      DIMENSION KPDS(*),KGDS(*),IPDS(*),IGDS(*)
+ C - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+ C  DETERMINE PRODUCT DEFINITION SECTION (PDS) PARAMETERS
+       IF(KPDS(23).NE.2) THEN
+
+--- a/libs/etc/utils/mapinfo.F
++++ b/libs/etc/utils/mapinfo.F
+@@ -1369,7 +1369,7 @@
+ c  get area of the grib record
+ c
+ cfpp$ noconcur r
+-      dimension kgds(25)
++      dimension kgds(*)
+       logical ijordr
+ c
+       real rerth_
+
+--- a/libs/lib/bufrlib_linux/ufbdmp.F
++++ b/libs/lib/bufrlib_linux/ufbdmp.F
+@@ -16,8 +16,10 @@
+       character*1  you
+       equivalence  (vl,vc)
+       real*8       val,vl
++      character*8  xmsg
+ 
+-      data bmiss /10e10/,xmsg/8HMISSING /
++      data bmiss /10e10/
++      data xmsg  /'MISSING'/
+  
+ c----------------------------------------------------------------------
+ cffp$ expand (status)
+@@ -58,7 +60,7 @@
+       if(tp.ne.'CHR' .and. nint(vl).lt.bmiss) then
+          write(luout,1) nv,tp,it,tg,vl,ib,is,ir,nd,jp,lk,jb
+       else
+-         if(tp.ne.'CHR') vl = xmsg
++         if(tp.ne.'CHR') vc = xmsg
+          if(tp.eq.'CHR') vc = vc(1:ib/8)
+          rj = rjust(vc)
+          write(luout,2) nv,tp,it,tg,vc,ib,is,ir,nd,jp,lk,jb
+
+--- a/libs/lib/w3lib/aea.F
++++ b/libs/lib/w3lib/aea.F
+@@ -64,8 +64,8 @@
+ C
+        DATA  IASCII/
+ #ifdef LINUX
+-#define XH 
+-#define XT X
++#define XH Z
++#define XT
+ #else
+ #define XH  X
+ #define XT
+
+--- a/libs/lib/w3lib/baread.F
++++ b/libs/lib/w3lib/baread.F
+@@ -29,7 +29,7 @@
+ C
+ C$$$
+       CHARACTER A(NB)
+-#ifdef LINUX
++#if defined(LINUX) && !defined(GNU)
+       INTEGER*4 LU4,IB4
+       INTEGER*4 FSEEK,FGETC
+ #endif
+@@ -37,7 +37,7 @@
+       INTEGER FSEEK,FGETC
+ #endif
+ C - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+-#ifdef LINUX
++#if defined(LINUX) && !defined(GNU)
+        LU4=LU
+        IB4=IB
+        IF(FSEEK(LU4,IB4,0).EQ.0) THEN
+
+--- a/libs/lib/w3lib/datimx.F
++++ b/libs/lib/w3lib/datimx.F
+@@ -56,9 +56,12 @@
+ C 
+ C                 YR    MON     DAY
+ C
+-      CALL IDATE(NOW(7),NOW(6),NOW(8))
+-      NOW(14) = MOD(NOW(8), 100)
+-      IF (NOW(14) .EQ. NOW(8)) NOW(8) = NOW(8) + 1900
++      INTEGER IDATE_ARR(3)
++      CALL IDATE(IDATE_ARR)
++      NOW(7)  = IDATE_ARR(2)
++      NOW(6)  = IDATE_ARR(1)
++      NOW(8)  = IDATE_ARR(3)
++      NOW(14) = MOD(IDATE_ARR(3), 100)
+       CALL TIME(ATIME)
+ C
+       NOW(1)  =  1
+@@ -93,7 +96,7 @@
+ C
+ C     NO CLOCK FUNCTION TO GET 1000 TH OF SEC, SET TO ZERO ON SGI
+ C
+-      NOW(2) = SECNDS(0.0)
++      NOW(2) = 0
+ C
+       RETURN
+       END
+
+--- a/libs/lib/w3lib/w3fi58.F
++++ b/libs/lib/w3lib/w3fi58.F
+@@ -1,5 +1,4 @@
+ #include <define.h>
+-#ifndef LINUX
+       SUBROUTINE W3FI58(IFIELD,NPTS,NWORK,NPFLD,NBITS,LEN,KMIN)
+ C$$$  SUBPROGRAM DOCUMENTATION BLOCK  ***
+ C                .      .    .                                       .
+@@ -115,8 +114,6 @@
+       RETURN
+ C
+       END
+-#endif
+-#else
+       SUBROUTINE W3FI59(FIELD,NPTS,NBITS,NWORK,NPFLD,ISCALE,LEN,RMIN)
+ C
+ C  SUBPROGRAM DOCUMENTATION BLOCK
