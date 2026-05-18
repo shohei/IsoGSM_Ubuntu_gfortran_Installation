@@ -1,4 +1,4 @@
-# IsoGSM_Ubuntu_arm64_Updater
+# IsoGSM_Ubuntu_gfortran_Installation
 
 ## How to run
 
