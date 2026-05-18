@@ -97,12 +97,13 @@ if [[ $SKIP_PATCH -eq 1 ]]; then
 elif patch --dry-run -R -p1 -s -f < "$PATCH_FILE" &>/dev/null; then
     info "Patch already applied. Skipping."
 else
-    # Not yet applied: verify it can be applied cleanly first
-    if ! patch --dry-run -p1 -s -f < "$PATCH_FILE" &>/dev/null; then
+    # -N skips hunks already applied; check that no hunks genuinely fail
+    _dry=$(patch --dry-run -p1 -N -f < "$PATCH_FILE" 2>&1)
+    if echo "$_dry" | grep -qE "[0-9]+ out of [0-9]+ hunk.* FAILED"; then
         die "Cannot apply patch. Files are in an unexpected state.\n" \
             "    Run: patch --dry-run -p1 < $PATCH_FILE  for details."
     fi
-    patch -p1 < "$PATCH_FILE"
+    patch -p1 -N -r /dev/null < "$PATCH_FILE" &>/dev/null || true
     info "Patch applied."
 fi
 
