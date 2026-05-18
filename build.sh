@@ -219,17 +219,17 @@ patch_file('libs/lib/w3lib/rdgb.F', fix_rdgb)
 # configure-scr generates mpisub from mpisub.in, so we fix the template.
 # configure-scr must be re-run after this fix to regenerate mpisub.
 def fix_mpisub_in(src):
-    # Already fixed if PBS_NODEFILE conditional with --oversubscribe is present
-    if 'if [ -n "$PBS_NODEFILE"' in src and '--oversubscribe' in src:
+    # Already fixed if PBS_NODEFILE conditional with --allow-run-as-root is present
+    if 'if [ -n "$PBS_NODEFILE"' in src and '--allow-run-as-root' in src:
         return src
     # Replace "@MPIEXEC@  @MPIEXEC_ARGS@ $args ..." + post-run mpdexit lines
     src = re.sub(
         r'@MPIEXEC@  @MPIEXEC_ARGS@ \$args 1>\$here_dir/\$outs\.ft\$hx 2>&1\ncc=\$\?\n#\n\./mpdexit\.sh\nmpdallexit\n',
         'if [ -n "$PBS_NODEFILE" ] ; then\n'
-        '\t@MPIEXEC@ --oversubscribe -hostfile $PBS_NODEFILE $args'
+        '\t@MPIEXEC@ --allow-run-as-root --oversubscribe -hostfile $PBS_NODEFILE $args'
         ' 1>$here_dir/$outs.ft$hx 2>&1\n'
         'else\n'
-        '\t@MPIEXEC@ --oversubscribe $args 1>$here_dir/$outs.ft$hx 2>&1\n'
+        '\t@MPIEXEC@ --allow-run-as-root --oversubscribe $args 1>$here_dir/$outs.ft$hx 2>&1\n'
         'fi\n'
         'cc=$?\n',
         src
@@ -237,6 +237,87 @@ def fix_mpisub_in(src):
     return src
 
 patch_file('gsm_runs/runscr/mpisub.in', fix_mpisub_in)
+
+# ── gsm/src/sfcl/superead.F ─────────────────────────────────────────────────
+# cvalin threshold for SST land/sea classification: change from 273.15 K to 1.0.
+# GRIB SST data in sstanl files has values ~0–32 (Celsius-scale after decimal
+# scaling), so the original 273.15 threshold incorrectly marks every point as
+# land.  A threshold of 1.0 distinguishes near-zero land fill from real SST.
+def fix_superead(src):
+    old = "data cvalin(itsf),condin(itsf)/273.15,'lt'/"
+    new = "data cvalin(itsf),condin(itsf)/1.0,'lt'/"
+    if new in src:
+        return src
+    return src.replace(old, new)
+
+patch_file('gsm/src/sfcl/superead.F', fix_superead)
+
+# ── gsm/src/fcst/wrisig.F ───────────────────────────────────────────────────
+# Fix two bugs:
+# 1. Add orog_cache with SAVE to avoid repeated sigit reads.
+# 2. Replace sigit file-reading for orography with computation from gz/z00,
+#    which eliminates the MPI race condition (all 36 processes simultaneously
+#    read then overwrite sigit on the first wrisig call).
+#    rdsig stores: gz(j) = gz_raw(j) * snnp1(j) * ga2, z00 = gz_raw(1).
+#    Reconstruction: orog_cache(1) = z00; orog_cache(j) = gz(j)/(snnp1(j)*ga2).
+WRISIG_DECL_OLD = '      dimension orog(lnt22_)\nc\n      parameter'
+WRISIG_DECL_NEW = (
+    '      real orog_cache(lnt22_)\n'
+    '      logical orog_loaded\n'
+    '      save orog_cache, orog_loaded\n'
+    '      data orog_loaded /.false./\n'
+    '      dimension orog(lnt22_)\nc\n      parameter'
+)
+WRISIG_BODY_OLD = (
+    '      endif\nc\n'
+    '      close(n)\n'
+    '      rewind n\n'
+    "      open(unit=n,file='./sigit',form='unformatted',err=700)\n"
+    '      go to 701\n'
+    '  700 continue\n'
+    "      write(6,*) ' error in opening file sigit at wrisig'\n"
+    '                call abort\n'
+    '  701 continue\n'
+    '      rewind n\n'
+    '      read(n)\n'
+    "      print *,' read lab '\n"
+    '      read(n)\n'
+    "      print *,' read fhour idate  '\n"
+    '      read(n)( orog(i),i=1,lnt2_)\n'
+    "      print *,' read gz '\n"
+    '      close(n)\nc\n'
+    '      if(itpdt.lt.4) then'
+)
+WRISIG_BODY_NEW = (
+    '      endif\n'
+    'c  recover raw topography coefficients from gz (which rdsig scaled by snnp1*ga2)\n'
+    'c  z00 = gz_raw(1) (saved before scaling); gz_raw(j) = gz(j)/(snnp1(j)*ga2) for j>1\n'
+    'c  this avoids reading from sigit, eliminating the MPI race condition\nc\n'
+    '      if (.not. orog_loaded) then\n'
+    '        orog_cache(1) = z00\n'
+    '        do i=2,lnt2_\n'
+    '          if(snnp1(i).ne.0.) then\n'
+    '            orog_cache(i)=gz(i)/(snnp1(i)*(9.8/(6.3712e6*6.3712e6)))\n'
+    '          else\n'
+    '            orog_cache(i)=0.\n'
+    '          endif\n'
+    '        enddo\n'
+    '        orog_loaded = .true.\n'
+    '      endif\n'
+    '      do i=1,lnt2_\n'
+    '        orog(i)=orog_cache(i)\n'
+    '      enddo\nc\n'
+    '      if(itpdt.lt.4) then'
+)
+
+def fix_wrisig(src):
+    if 'orog_loaded' in src:
+        return src  # already patched
+    src = src.replace(WRISIG_DECL_OLD, WRISIG_DECL_NEW, 1)
+    src = src.replace(WRISIG_BODY_OLD, WRISIG_BODY_NEW, 1)
+    return src
+
+patch_file('gsm/src/fcst/wrisig.F', fix_wrisig)
 
 # ── def/sysvars.defs (add LD_LIBRARY_PATH to NICKNAME-MARCH HEADER block) ───
 # configure-scr regenerates gsm_runs/HEADER from this block on every run via

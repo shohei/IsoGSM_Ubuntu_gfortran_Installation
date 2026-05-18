@@ -428,3 +428,74 @@
  C
        END
 -#endif
+
+--- a/gsm/src/sfcl/superead.F
++++ b/gsm/src/sfcl/superead.F
+@@ -453,7 +453,7 @@
+       data mask(itsf)/1/ ! sst and land skin temp
+         data limask(itsf)/.true./
+-          data cvalin(itsf),condin(itsf)/273.15,'lt'/
++          data cvalin(itsf),condin(itsf)/1.0,'lt'/
+       data mask(iab4)/0/
+       data mask(iab1)/0/ ! 1-type albedo
+       data mask(ialf)/0/ ! albedo fraction
+
+--- a/gsm/src/fcst/wrisig.F
++++ b/gsm/src/fcst/wrisig.F
+@@ -145,7 +145,11 @@
+       dimension ak5x(levp1_),bk5x(levp1_)
+ c
+-      dimension orog(lnt22_)
++      real orog_cache(lnt22_)
++      logical orog_loaded
++      save orog_cache, orog_loaded
++      data orog_loaded /.false./
++      dimension orog(lnt22_)
+ c
+       parameter(kdum=201-levs_-1-levs_,kdum2=21,kens=2)
+       dimension dummy(kdum),dummy2(kdum2),ensemble(kens)
+ c
+@@ -165,24 +169,25 @@
+       else if (itpdt.eq.2 .or. itpdt.eq.5) then
+         call sph_fft_driver(1,slq_q2,rq,ntotal_)
+       endif
+-c
+-      close(n)
+-      rewind n
+-      open(unit=n,file='./sigit',form='unformatted',err=700)
+-      go to 701
+-  700 continue
+-      write(6,*) ' error in opening file sigit at wrisig'
+-                call abort
+-  701 continue
+-      rewind n
+-      read(n)
+-      print *,' read lab '
+-      read(n)
+-      print *,' read fhour idate  '
+-      read(n)( orog(i),i=1,lnt2_)
+-      print *,' read gz '
+-      close(n)
+-c
++c  recover raw topography coefficients from gz (which rdsig scaled by snnp1*ga2)
++c  z00 = gz_raw(1) (saved before scaling); gz_raw(j) = gz(j)/(snnp1(j)*ga2) for j>1
++c  this avoids reading from sigit, eliminating the MPI race condition
++c
++      if (.not. orog_loaded) then
++        orog_cache(1) = z00
++        do i=2,lnt2_
++          if(snnp1(i).ne.0.) then
++            orog_cache(i)=gz(i)/(snnp1(i)*(9.8/(6.3712e6*6.3712e6)))
++          else
++            orog_cache(i)=0.
++          endif
++        enddo
++        orog_loaded = .true.
++      endif
++      do i=1,lnt2_
++        orog(i)=orog_cache(i)
++      enddo
++c
+       if(itpdt.lt.4) then
+         call fnam(fni(itpdt),nchi(itpdt),fhour,fno,ncho)
+       else
