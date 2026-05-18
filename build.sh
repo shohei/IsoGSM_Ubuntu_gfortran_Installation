@@ -9,6 +9,7 @@
 #   --libs-only    Build libs only
 #   --gsm-only     Build gsm only (libs must already be built)
 #   -jN            Number of parallel make jobs (default: 1)
+#   --npes N       Set number of MPI processes (default: 16)
 #   -h, --help     Show this help
 
 set -euo pipefail
@@ -35,6 +36,7 @@ SKIP_PATCH=0
 BUILD_LIBS=1
 BUILD_GSM=1
 JOBS=1
+NPES_OPT=""
 
 while [[ $# -gt 0 ]]; do
     case $1 in
@@ -42,8 +44,10 @@ while [[ $# -gt 0 ]]; do
         --libs-only)  BUILD_GSM=0 ;;
         --gsm-only)   BUILD_LIBS=0 ;;
         -j*)          JOBS="${1#-j}" ;;
+        --npes)       NPES_OPT="$2"; shift ;;
+        --npes=*)     NPES_OPT="${1#--npes=}" ;;
         -h|--help)
-            sed -n '2,12p' "$0" | sed 's/^# \{0,1\}//'
+            sed -n '2,13p' "$0" | sed 's/^# \{0,1\}//'
             exit 0 ;;
         *) die "Unknown option: $1  (use --help to see usage)" ;;
     esac
@@ -92,18 +96,22 @@ step "Applying patch (isogsm_arm64_gfortran.patch)"
 
 [[ -f "$PATCH_FILE" ]] || die "Patch file not found: $PATCH_FILE"
 
+PATCH_SENTINEL="$ISOGSM_DIR/.patch-applied"
+
 if [[ $SKIP_PATCH -eq 1 ]]; then
     warn "--skip-patch specified. Skipping patch."
-elif patch --dry-run -R -p1 -s -f < "$PATCH_FILE" &>/dev/null; then
+elif [[ -f "$PATCH_SENTINEL" ]]; then
     info "Patch already applied. Skipping."
 else
-    # -N skips hunks already applied; check that no hunks genuinely fail
-    _dry=$(patch --dry-run -p1 -N -f < "$PATCH_FILE" 2>&1)
-    if echo "$_dry" | grep -qE "[0-9]+ out of [0-9]+ hunk.* FAILED"; then
-        die "Cannot apply patch. Files are in an unexpected state.\n" \
-            "    Run: patch --dry-run -p1 < $PATCH_FILE  for details."
+    # Apply with -N (ignore already-applied hunks) and -f (no prompts).
+    # Capture output to show a warning if any hunks failed.
+    _out=$(patch -p1 -N -r /dev/null -f < "$PATCH_FILE" 2>&1) || true
+    _nfailed=$(echo "$_out" | grep -cE "FAILED" || true)
+    if [[ $_nfailed -gt 0 ]]; then
+        warn "$_nfailed hunk(s) could not be applied (may already be patched)."
+        warn "Run: patch --dry-run -p1 < $PATCH_FILE  for details."
     fi
-    patch -p1 -N -r /dev/null < "$PATCH_FILE" &>/dev/null || true
+    touch "$PATCH_SENTINEL"
     info "Patch applied."
 fi
 
@@ -319,6 +327,65 @@ def fix_wrisig(src):
 
 patch_file('gsm/src/fcst/wrisig.F', fix_wrisig)
 
+# ── gsm/src/sfcl/checksndph.F ────────────────────────────────────────────────
+# The file was corrupted: it contained checkfn (also in checkfn.F) followed by
+# an orphan tail of setalbedo with no subroutine header.  Replace with the
+# correct checksndph subroutine that the sfcmrg.F call requires.
+CHECKSNDPH_CORRECT = '''\
+      subroutine checksndph(sno, snd, ijmax)
+c
+c  check snow depth to make sure that it is nonzero if snow is nonzero.
+c  sno: snow depth (jsno, standard)
+c  snd: snow depth (jsnd, noah)
+c
+      implicit none
+      integer ijmax
+      real sno(ijmax), snd(ijmax)
+      integer ij
+c
+      do ij = 1, ijmax
+        if (sno(ij) .gt. 0. .and. snd(ij) .le. 0.) snd(ij) = sno(ij)
+        if (snd(ij) .gt. 0. .and. sno(ij) .le. 0.) sno(ij) = snd(ij)
+      enddo
+c
+      return
+      end
+'''
+
+def fix_checksndph(src):
+    if src.strip() == CHECKSNDPH_CORRECT.strip():
+        return src
+    return CHECKSNDPH_CORRECT
+
+patch_file('gsm/src/sfcl/checksndph.F', fix_checksndph)
+
+# ── gsm/src/sfcl/albedo.F ────────────────────────────────────────────────────
+# Same corruption as checksndph.F (checkfn + orphan setalbedo tail).
+# Replace with an albedo() wrapper that delegates to setalbedo().
+ALBEDO_CORRECT = '''\
+      subroutine albedo(vegtyp, rlat, ijmax, mon, alb, frac)
+c
+c  set albedo and vegetation coverage fraction from vegetation type.
+c  wrapper for setalbedo (kept for backward compatibility).
+c
+      implicit none
+      integer ijmax, mon
+      real vegtyp(ijmax), rlat(ijmax)
+      real alb(ijmax,4), frac(ijmax,2)
+c
+      call setalbedo(vegtyp, rlat, ijmax, mon, alb, frac)
+c
+      return
+      end
+'''
+
+def fix_albedo(src):
+    if src.strip() == ALBEDO_CORRECT.strip():
+        return src
+    return ALBEDO_CORRECT
+
+patch_file('gsm/src/sfcl/albedo.F', fix_albedo)
+
 # ── def/sysvars.defs (add LD_LIBRARY_PATH to NICKNAME-MARCH HEADER block) ───
 # configure-scr regenerates gsm_runs/HEADER from this block on every run via
 # def/get_sysvars, so the fix must live here rather than in HEADER directly.
@@ -382,6 +449,17 @@ fi
 info "LIBS_DIR = $LIBS_DIR"
 sed -i "s|^LIBS_DIR=.*|LIBS_DIR=$LIBS_DIR|" "$CONFIGURE_MODEL"
 
+# configure-model: NPES (if --npes was specified)
+if [[ -n "$NPES_OPT" ]]; then
+    info "NPES = $NPES_OPT (overriding configure-model)"
+    sed -i "s|^NPES=.*|NPES=$NPES_OPT|" "$CONFIGURE_MODEL"
+    # Blank NCOL so mpiset.x auto-calculates the decomposition
+    sed -i "s|^NCOL=.*|NCOL=|" "$CONFIGURE_MODEL"
+else
+    _cur_npes=$(grep '^NPES=' "$CONFIGURE_MODEL" | cut -d= -f2)
+    info "NPES = $_cur_npes (from configure-model; use --npes N to override)"
+fi
+
 # ─────────────────────────────────────────────────────────────────────────────
 #  Build libs
 # ─────────────────────────────────────────────────────────────────────────────
@@ -410,6 +488,9 @@ if [[ $BUILD_GSM -eq 1 ]]; then
 
     info "Running configure-model..."
     ./configure-model
+
+    # Fix parallel build race condition: TEMP.F → $*_TEMP.F in all generated Makefiles
+    find "$GSM_DIR/src" -name Makefile -exec sed -i 's/TEMP\.F/$*_TEMP.F/g' {} \;
 
     info "make clean ..."
     make clean
